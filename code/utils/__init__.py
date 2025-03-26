@@ -81,8 +81,8 @@ def read_list(split, task="synapse"):
 
 def read_data(data_id, task, nifti=False, test=False, normalize=False):
     config = Config(task)
-    im_path = os.path.join(config.save_dir, 'npy', f'{data_id}_image.npy')
-    lb_path = os.path.join(config.save_dir, 'npy', f'{data_id}_label.npy')
+    im_path = os.path.join(config.save_dir, 'npy', f'{data_id}+T1_A_image.npy')
+    lb_path = os.path.join(config.save_dir, 'npy', f'{data_id}+T1_A_label.npy')
     if not os.path.exists(im_path) or not os.path.exists(lb_path):
         raise ValueError(data_id)
     image = np.load(im_path)

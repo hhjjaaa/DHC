@@ -45,7 +45,7 @@ class Synapse_AMOS(Dataset):
             label[:] = 0
         # print("before",image.min(), image.max())
         # image = (image - image.min()) / (image.max() - image.min())
-        image = image.clip(min=-75, max=275)
+        # image = image.clip(min=-75, max=275)
         image = (image - image.min()) / (image.max() - image.min())
         # image = (image - image.mean()) / (image.std() + 1e-8)
         # print("after",image.min(), image.max())
