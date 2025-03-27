@@ -394,6 +394,9 @@ class UNet(nn.Module):
         self.saved_T1_feature_bg_s = None
         self.saved_T1_feature_fg_s = None
 
+        self.register_buffer("global_T1_feature_bg_s", torch.zeros(1, in_channels*8))
+        self.register_buffer("global_T1_feature_fg_s", torch.zeros(1, in_channels*8))
+
         self.queue_size = queue_size
         self.queue_fg = []  # 队列存储前景特征
         self.queue_bg = []  # 队列存储背景特征
@@ -459,12 +462,17 @@ class UNet(nn.Module):
             # self.saved_T1_feature_bg_s = self.update_queue(self.queue_bg, T1_feature_bg_s)
 
             # 如有需要，计算全局前景和背景特征的平均值
-        avg_fg = self.saved_T1_feature_fg_s.mean(dim=0, keepdim=True)  # 形状: [1, C]
-        avg_bg = self.saved_T1_feature_bg_s.mean(dim=0, keepdim=True)  # 形状: [1, C]
+            avg_fg = self.saved_T1_feature_fg_s.mean(dim=0, keepdim=True)  # 形状: [1, C]
+            avg_bg = self.saved_T1_feature_bg_s.mean(dim=0, keepdim=True)  # 形状: [1, C]
 
 
-        FP = avg_fg.unsqueeze(-1).unsqueeze(-1)
-        BP = avg_bg.unsqueeze(-1).unsqueeze(-1)
+            self.global_T1_feature_bg_s.copy_(avg_bg)
+            self.global_T1_feature_fg_s.copy_(avg_fg)
+
+
+
+        FP = self.global_T1_feature_bg_s.unsqueeze(-1).unsqueeze(-1)
+        BP = self.global_T1_feature_fg_s.unsqueeze(-1).unsqueeze(-1)
 
         # 计算相似度，得到 SSP_out_T1
         SSP_out_T1 = self.similarity_func(x5, FP, BP)
@@ -552,8 +560,8 @@ class UNet(nn.Module):
         bg_local_ls = []
 
         for epi in range(bs):
-            fg_thres = 0.7
-            bg_thres = 0.5
+            fg_thres = 0.5
+            bg_thres = 0.3
 
             cur_feat = feature_q[epi].view(feature_q.shape[1], -1)  # (channels, D*H*W)
 

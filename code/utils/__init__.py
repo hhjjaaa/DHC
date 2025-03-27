@@ -89,7 +89,7 @@ def read_data(data_id, task, nifti=False, test=False, normalize=False):
     label = np.load(lb_path)
     
     if normalize:
-        image = image.clip(min=-75, max=275)
+        # image = image.clip(min=-75, max=275)
         image = (image - image.min()) / (image.max() - image.min())
         image = image.astype(np.float32)
     
@@ -314,5 +314,62 @@ def test_single_case_AB(net_A, net_B, image, stride_xy, stride_z, patch_size, nu
     label_map = np.argmax(score_map, axis=0)
     return label_map, score_map
 
+
+def test_all_case_AB_2d(net_A, net_B, ids_list, task, num_classes, patch_size, stride_xy,
+                        test_save_path=None):
+    for data_id in tqdm(ids_list):
+        image, _ = read_data(data_id, task, test=True, normalize=True)
+
+        pred, _ = test_single_case_AB_2d(
+            net_A, net_B,
+            image,
+            stride_xy,
+            patch_size,
+            num_classes=num_classes
+        )
+        # out = sitk.GetImageFromArray(pred.astype(np.float32))
+
+        # sitk.WriteImage(out, f'{test_save_path}/{data_id}.nii.gz')
+        np.save(os.path.join(test_save_path, f'{data_id}.npy'), pred.astype(np.float32))
+
+
+def test_single_case_AB_2d(net_A, net_B, image, stride_xy, patch_size, num_classes):
+    image = image[np.newaxis]
+    patch_size = ( patch_size[1], patch_size[0])
+    _, ww, hh = image.shape
+
+    sx = math.ceil((ww - patch_size[0]) / stride_xy) + 1
+    sy = math.ceil((hh - patch_size[1]) / stride_xy) + 1
+
+    score_map = np.zeros((num_classes,) + image.shape[1:3]).astype(np.float32)
+    cnt = np.zeros(image.shape[1:3]).astype(np.float32)
+
+    for x in range(sx):
+        xs = min(stride_xy * x, ww - patch_size[0])
+        for y in range(sy):
+            ys = min(stride_xy * y, hh - patch_size[1])
+
+            test_patch = image[:, xs:xs + patch_size[0], ys:ys + patch_size[1]]
+
+            test_patch = np.expand_dims(test_patch, axis=0).astype(np.float32)
+            test_patch = torch.from_numpy(test_patch).cuda()
+
+            # out_1,_,_=net_A(test_patch,is_train=False)
+            # out_2,_,_=net_B(test_patch,is_train=False)
+            out_1 = net_A(test_patch)
+            out_2 = net_B(test_patch)
+            y1 = (out_1 + out_2) / 2.0  # <--
+            y = F.softmax(y1, dim=1)  # <--
+            y = y.cpu().data.numpy()
+            y = y[0, ...]
+
+            score_map[:, xs:xs + patch_size[0], ys:ys + patch_size[1]] += y
+            cnt[xs:xs + patch_size[0], ys:ys + patch_size[1]] += 1
+
+
+    score_map = score_map / np.expand_dims(cnt, axis=0)
+
+    label_map = np.argmax(score_map, axis=0)
+    return label_map, score_map
 
 
