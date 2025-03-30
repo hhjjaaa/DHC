@@ -433,9 +433,9 @@ class UNet(nn.Module):
 
 
         if is_train:
-            tmp_bs = x5.shape[0] // 2
-            x5_label=x5[:tmp_bs, ...]
-            # x5_label = x5
+            # tmp_bs = x5.shape[0] // 2
+            # x5_label=x5[:tmp_bs, ...]
+            x5_label = x5
             ema_decay=0.999
             # 如果是训练阶段，根据 mask_DWI 计算当前的前景和背景特征
             T1_feature_fg_s = self.masked_average_pooling(x5_label, (mask_T1 == 1).float())
@@ -479,9 +479,9 @@ class UNet(nn.Module):
         ssp=nn.Softmax(dim=1)(SSP_out_T1)
 
         if is_train:
-            tmp_bs = x5.shape[0] // 2
-            x5_label = x5[:tmp_bs, ...]
-            # x5_label = x5
+            # tmp_bs = x5.shape[0] // 2
+            # x5_label = x5[:tmp_bs, ...]
+            x5_label = x5
             fg_T1 = self.masked_average_pooling(x5_label, (mask_T1 == 1).float())
             bg_T1 = self.masked_average_pooling(x5_label, (mask_T1 == 0).float())
             self_similarity_fg_T1 = F.cosine_similarity(
@@ -560,8 +560,10 @@ class UNet(nn.Module):
         bg_local_ls = []
 
         for epi in range(bs):
-            fg_thres = 0.5
-            bg_thres = 0.3
+            # fg_thres = 0.5
+            # bg_thres = 0.3
+            fg_thres = 0.7
+            bg_thres = 0.5
 
             cur_feat = feature_q[epi].view(feature_q.shape[1], -1)  # (channels, D*H*W)
 
@@ -720,18 +722,19 @@ class UNet(nn.Module):
 def test_unet():
     # 创建一个随机输入，假设 batch_size=1，3个通道，128×128 的空间尺寸
     input_tensor = torch.randn(4, 1, 448, 448)
-    input_tensor2 = torch.randn(2,1,  448, 448)
+    input_tensor2 = torch.randn(4,1,  448, 448)
 
     # 实例化 VNet 模型
     # 可根据需要选择 normalization 类型（例如 'none'、'batchnorm' 等）和是否使用 dropout
     model = UNet(n_channels=1, n_classes=2)
 
     # 将输入传入模型，获得输出
-    output,_ = model(input_tensor,input_tensor2,is_train=True)
+    output, selfout = model(input_tensor,input_tensor2,is_train=True)
 
     # 输出输入和输出的张量形状
     print("Input shape:", input_tensor.shape)
     print("Output shape:", output.shape)
+    print("Selfout shape:", selfout.shape)
 
 
 if __name__ == "__main__":

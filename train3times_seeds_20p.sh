@@ -25,7 +25,7 @@ cps="AB"
 echo $folder
 
 #python code/train_${method}.py --task ${task} --exp ${folder}${method}${exp}/fold1 --seed 666 -g ${cuda} --base_lr ${lr} -w ${cps_w} -ep ${epoch} -sl ${labeled_data} -su ${unlabeled_data} -r
-python code/test_2d.py --task ${task} --exp ${folder}${method}${exp}/fold1 -g ${cuda} --cps ${cps}
+#python code/test_2d.py --task ${task} --exp ${folder}${method}${exp}/fold1 -g ${cuda} --cps ${cps}
 python code/evaluate_2d.py  --task ${task} --exp ${folder}${method}${exp} --folds 1
 #python code/train_${method}.py --exp ${folder}${method}${exp}/fold2 --seed 1 -g ${cuda} --base_lr ${lr} -w ${cps_w} -ep ${epoch} -sl ${labeled_data} -su ${unlabeled_data} -r
 #python code/test.py --exp ${folder}${method}${exp}/fold2 -g ${cuda} --cps ${cps}

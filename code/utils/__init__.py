@@ -78,23 +78,73 @@ def read_list(split, task="synapse"):
     ).tolist()
     return sorted(ids_list)
 
+#
+# def read_data(data_id, task, nifti=False, test=False, normalize=False):
+#     config = Config(task)
+#     im_path = os.path.join(config.save_dir, 'npy', f'{data_id}+DWI_image.npy')
+#     lb_path = os.path.join(config.save_dir, 'npy', f'{data_id}+DWI_label.npy')
+#     if not os.path.exists(im_path) or not os.path.exists(lb_path):
+#         raise ValueError(data_id)
+#     image = np.load(im_path)
+#     label = np.load(lb_path)
+#
+#     if normalize:
+#         # image = image.clip(min=-75, max=275)
+#         image = (image - image.min()) / (image.max() - image.min())
+#         image = image.astype(np.float32)
+#
+#     return image, label
 
-def read_data(data_id, task, nifti=False, test=False, normalize=False):
+def read_data(data_id, task, nifti=False, test=False, normalize=True):
     config = Config(task)
-    im_path = os.path.join(config.save_dir, 'npy', f'{data_id}+T1_A_image.npy')
-    lb_path = os.path.join(config.save_dir, 'npy', f'{data_id}+T1_A_label.npy')
-    if not os.path.exists(im_path) or not os.path.exists(lb_path):
-        raise ValueError(data_id)
-    image = np.load(im_path)
-    label = np.load(lb_path)
-    
-    if normalize:
-        # image = image.clip(min=-75, max=275)
-        image = (image - image.min()) / (image.max() - image.min())
-        image = image.astype(np.float32)
-    
-    return image, label
+    im_path = [
+               os.path.join(config.save_dir, 'npy', f'{data_id}+T1_A_image.npy'),
+               os.path.join(config.save_dir, 'npy', f'{data_id}+DWI_image.npy')]
+               # os.path.join(config.save_dir, 'npy', f'{data_id}+T1_D_image.npy'),
+               # os.path.join(config.save_dir, 'npy', f'{data_id}+T1_PRE_image.npy'),
+               # os.path.join(config.save_dir, 'npy', f'{data_id}+T2_image.npy')]
 
+
+    # lb_path = os.path.join(config.save_dir, 'npy', f'{data_id}_label.npy')
+    lb_path =[
+               os.path.join(config.save_dir, 'npy', f'{data_id}+T1_A_label.npy'),
+               os.path.join(config.save_dir, 'npy', f'{data_id}+DWI_label.npy')]
+               # os.path.join(config.save_dir, 'npy', f'{data_id}+T1_D_label.npy'),
+               # os.path.join(config.save_dir, 'npy', f'{data_id}+T1_PRE_label.npy'),
+               # os.path.join(config.save_dir, 'npy', f'{data_id}+T2_label.npy')]
+
+
+    missing_im_paths = [im for im in im_path if not os.path.exists(im)]
+    missing_lb_paths = [lb for lb in lb_path if not os.path.exists(lb)]
+    if missing_im_paths:
+        print(f"Missing image paths for data_id {data_id}: {missing_im_paths}")
+        raise FileNotFoundError(f"Missing image paths for data_id: {data_id}")
+    if missing_lb_paths:
+        print(f"Missing labels paths for data_id {data_id}: {missing_lb_paths}")
+        raise FileNotFoundError(f"Missing labels paths for data_id: {data_id}")
+
+    images = []
+    labels =[]
+    for p in im_path:
+        img = np.load(p)
+        # 单独处理每个模态
+        if normalize:
+            p5 = np.percentile(img.flatten(), 0.5)
+            p95 = np.percentile(img.flatten(), 99.5)
+            img = img.clip(min=p5, max=p95)  # 截断百分位数范围
+            img = (img - img.min()) / (img.max() - img.min())  # 归一化到 [0, 1]
+            img = img.astype(np.float32)
+        images.append(img)
+
+    image = np.stack(images, axis=0)  # 形状为 (模态数, H, W, D)
+
+    for p in lb_path:
+        lab = np.load(p)
+        labels.append(lab)
+    label = np.stack(labels, axis=0)
+
+
+    return image, label
 
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
@@ -107,10 +157,13 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
-def fetch_data(batch, labeled=True):
+def fetch_data(batch, labeled=True, is_unsqueeze=True):
     image = batch['image'].cuda()
     if labeled:
-        label = batch['label'].cuda().unsqueeze(1)
+        if is_unsqueeze:
+            label = batch['label'].cuda().unsqueeze(1)
+        else:
+            label = batch['label'].cuda()
         return image, label
     else:
         return image

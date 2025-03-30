@@ -2,32 +2,30 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
+
 class CenterCrop(object):
     def __init__(self, output_size, task):
         """
         Args:
-            output_size (tuple): 期望输出尺寸 (h, w)
-            task (str): 任务类型，比如 'synapse'
+            output_size (tuple): Desired output size (h, w)
+            task (str): Task type, e.g., 'synapse'
         """
         self.output_size = output_size
         self.task = task
 
     def __call__(self, sample):
-        image = sample['image']  # 假设 image 的 shape 为 (H, W)
-        # 判断是否需要padding
-        padding_flag = image.shape[0] <= self.output_size[0] or image.shape[1] <= self.output_size[1]
+        image = sample['image']  # image shape will now be (2, H, W)
+        # Check if padding is required
+        padding_flag = image.shape[1] <= self.output_size[0] or image.shape[2] <= self.output_size[1]
 
         if padding_flag:
-            ph = max((self.output_size[0] - image.shape[0]) // 2 + 3, 0)
-            pw = max((self.output_size[1] - image.shape[1]) // 2 + 3, 0)
+            ph = max((self.output_size[0] - image.shape[1]) // 2 + 3, 0)
+            pw = max((self.output_size[1] - image.shape[2]) // 2 + 3, 0)
 
         ret_dict = {}
-        print("image.shape", image.shape)
-        (H, W) = image.shape
-
-        # 计算crop起始点
+        (C, H, W) = image.shape  # C = 2 for modalities
+        # Calculate crop starting point
         if self.task == 'synapse':
-            # 对于synapse任务，假设宽度维度在预处理时会下采样一半
             h1 = int(round((H - self.output_size[0]) / 2.))
             w1 = int(round((W // 2 - self.output_size[1]) / 2.))
         else:
@@ -36,7 +34,7 @@ class CenterCrop(object):
 
         for key in sample.keys():
             item = sample[key]
-            # 对于synapse任务，先对图像或标签进行下采样（宽度减半）
+            # Downsampling for synapse task
             if self.task == 'synapse':
                 h_item, w_item = item.shape
                 item = torch.FloatTensor(item).unsqueeze(0).unsqueeze(0)
@@ -45,21 +43,22 @@ class CenterCrop(object):
                 else:
                     item = F.interpolate(item, size=(h_item, w_item // 2), mode='nearest')
                 item = item.squeeze().numpy()
+
             if padding_flag:
-                item = np.pad(item, [(ph, ph), (pw, pw)], mode='constant', constant_values=0)
-            # 裁剪中心区域
-            item = item[h1:h1 + self.output_size[0], w1:w1 + self.output_size[1]]
+                item = np.pad(item, [(0, 0), (ph, ph), (pw, pw)], mode='constant', constant_values=0)
+
+            # Crop the center region
+            item = item[:, h1:h1 + self.output_size[0], w1:w1 + self.output_size[1]]
             ret_dict[key] = item
 
         return ret_dict
 
-
 class RandomCrop(object):
     '''
-    随机裁剪图像
+    Randomly crop an image
     Args:
-        output_size (tuple): 期望输出尺寸 (h, w)
-        task (str): 任务类型，比如 'synapse'
+        output_size (tuple): Desired output size (h, w)
+        task (str): Task type, e.g., 'synapse'
     '''
     def __init__(self, output_size, task):
         self.output_size = output_size
@@ -67,14 +66,14 @@ class RandomCrop(object):
 
     def __call__(self, sample):
         image = sample['image']
-        padding_flag = image.shape[0] <= self.output_size[0] or image.shape[1] <= self.output_size[1]
+        padding_flag = image.shape[1] <= self.output_size[0] or image.shape[2] <= self.output_size[1]
         if padding_flag:
-            ph = max((self.output_size[0] - image.shape[0]) // 2 + 3, 0)
-            pw = max((self.output_size[1] - image.shape[1]) // 2 + 3, 0)
+            ph = max((self.output_size[0] - image.shape[1]) // 2 + 3, 0)
+            pw = max((self.output_size[1] - image.shape[2]) // 2 + 3, 0)
 
         ret_dict = {}
-        (H, W) = image.shape
-        # 随机选取裁剪区域的起始坐标
+        (C, H, W) = image.shape  # C = 2 for modalities
+        # Randomly select crop starting coordinates
         if self.task == 'synapse':
             h1 = np.random.randint(0, H - self.output_size[0])
             w1 = np.random.randint(0, W // 2 - self.output_size[1])
@@ -92,24 +91,26 @@ class RandomCrop(object):
                 else:
                     item = F.interpolate(item, size=(h_item, w_item // 2), mode='nearest')
                 item = item.squeeze().numpy()
+
             if padding_flag:
-                item = np.pad(item, [(ph, ph), (pw, pw)], mode='constant', constant_values=0)
-            item = item[h1:h1 + self.output_size[0], w1:w1 + self.output_size[1]]
+                item = np.pad(item, [(0, 0), (ph, ph), (pw, pw)], mode='constant', constant_values=0)
+
+            # Crop the image randomly
+            item = item[:, h1:h1 + self.output_size[0], w1:w1 + self.output_size[1]]
             ret_dict[key] = item
 
         return ret_dict
 
-
 class RandomFlip_LR:
     """
-    随机左右翻转
+    Random left-right flip
     """
     def __init__(self, prob=0.8):
         self.prob = prob
 
     def _flip(self, img, prob):
         if prob[0] <= self.prob:
-            img = np.flip(img, axis=1).copy()
+            img = np.flip(img, axis=2).copy()  # Flipping across width dimension
         return img
 
     def __call__(self, sample):
@@ -121,17 +122,16 @@ class RandomFlip_LR:
             ret_dict[key] = item
         return ret_dict
 
-
 class RandomFlip_UD:
     """
-    随机上下翻转
+    Random up-down flip
     """
     def __init__(self, prob=0.8):
         self.prob = prob
 
     def _flip(self, img, prob):
         if prob[1] <= self.prob:
-            img = np.flip(img, axis=0).copy()
+            img = np.flip(img, axis=1).copy()  # Flipping across height dimension
         return img
 
     def __call__(self, sample):
@@ -143,16 +143,15 @@ class RandomFlip_UD:
             ret_dict[key] = item
         return ret_dict
 
-
 class ToTensor(object):
-    '''将 sample 中的 ndarray 转换为 Tensor'''
+    '''Convert sample from ndarray to Tensor'''
     def __call__(self, sample):
         ret_dict = {}
         for key in sample.keys():
             item = sample[key]
             if key == 'image':
-                # 生成 (1, H, W) 的tensor
-                ret_dict[key] = torch.from_numpy(item).unsqueeze(0).float()
+                # Convert to (C, H, W) tensor where C=2 for modalities
+                ret_dict[key] = torch.from_numpy(item).float()
             elif key == 'label':
                 ret_dict[key] = torch.from_numpy(item).long()
             else:

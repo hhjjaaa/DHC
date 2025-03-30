@@ -9,7 +9,7 @@ class Config:
             self.num_channels = 1
             self.n_filters = 32
             self.early_stop_patience = 100
-        elif task == "synapse": # amos
+        elif task == "amos": # amos
             self.base_dir = './Datasets/amos22'
             self.save_dir = './amos_data'
             self.patch_size = (64, 128, 128)
